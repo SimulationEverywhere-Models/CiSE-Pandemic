@@ -30,3 +30,27 @@
 *.exe
 *.out
 *.app
+
+# MacOS stuff
+.DS_Store
+
+# CLion stuff
+.idea/
+
+# Pyenv stuff
+.python-version
+
+# build folders
+build/
+cmake-build-debug/
+
+# binary of the model
+bin/
+
+# simulation results
+simulation_results/
+
+# Visualization stuff
+visualization/.ipynb_checkpoints
+visualization/output_messages.txt
+visualization/res/

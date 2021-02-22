@@ -1,0 +1,51 @@
+{
+	"shape": [ 25, 25 ],
+	"wrapped": false,
+	"cells": {
+		"default": {
+			"delay": "inertial",
+			"state": {
+				"population":     [20,   60,    10,   10   ],
+				"susceptible":    [ 1,    1,     1,    1   ],
+				"infected":       [ 0,    0,     0,    0   ],
+				"recovered":      [ 0,    0,     0,    0   ],
+				"deceased":       [ 0,    0,     0,    0   ]
+			},
+			"config": {
+				"n_decimals": 2,
+				"susceptibility": [ 0.5,  0.7,   0.8,  0.9 ],
+				"virulence":      [ 0.1,  0.2,   0.2,  0.3 ],
+				"recovery":       [ 0.2, 0.2,  0.1, 0.1],
+				"mortality":      [ 0,    0.01, 0.02, 0.05 ],
+				"immunity":       [ 1,    1,     1,    1   ]
+			},
+			"neighborhood": [
+				{
+					"type": "von_neumann",
+					"range": 1,
+					"vicinity": {
+						"connectivity": 1,
+						"mobility": [0.3, 0.7, 0.5, 0.2]
+					}
+				},
+				{
+					"type": "relative",
+					"neighbors": [[0, 0]],
+					"vicinity": {
+						"connectivity": 1,
+						"mobility": [0.6, 1, 1, 0.4]
+					}
+				}
+			]
+		},
+		"infection_epicenter": {
+			"state": {
+				"susceptible": [ 1, 0.8, 0.9, 1 ],
+				"infected": [ 0, 0.2, 0.1, 0 ]
+			}
+		}
+	},
+	"cell_map": {
+		"infection_epicenter": [[12, 12]]
+	}
+}

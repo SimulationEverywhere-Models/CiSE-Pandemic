@@ -1,0 +1,3 @@
+[submodule "cadmium"]
+	path = cadmium
+	url = git@github.com:SimulationEverywhere/cadmium.git
