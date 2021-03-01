@@ -52,5 +52,5 @@ simulation_results/
 
 # Visualization stuff
 visualization/.ipynb_checkpoints
-visualization/output_messages.txt
+visualization/output_messages*.txt
 visualization/res/

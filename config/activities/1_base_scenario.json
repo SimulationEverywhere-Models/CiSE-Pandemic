@@ -29,14 +29,14 @@
 				}
 			]
 		},
-		"infection_epicenter": {
+		"infected_cells": {
 			"state": {
-				"susceptible": [1, 0.99, 1, 1],
-				"infected":    [0, 0.01, 0, 0]
+				"susceptible": [0.8, 0.85, 0.9, 0.9],
+				"infected":    [0.2, 0.15, 0.1, 0.1]
 			}
 		}
 	},
 	"cell_map": {
-		"infection_epicenter": [[0, 0]]
+		"infected_cells": [[0, 0], [1, 0], [0, 1], [1, 1], [2, 0], [0, 2], [2, 1], [1, 2], [2, 2], [3, 0], [0, 3], [3, 1], [1, 3], [3, 2], [2, 3], [3, 3]]
 	}
 }
