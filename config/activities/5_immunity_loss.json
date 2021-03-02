@@ -16,7 +16,8 @@
 				"recovery":       [0.08,  0.08,  0.06,  0.04 ],
 				"mortality":      [0,     0.001, 0.01,  0.02 ],
 				"immunity":       [0.999, 0.999, 0.999, 0.999],
-				"n_decimals": 4
+				"n_decimals": 4,
+				"time_scaler":16
 			},
 			"neighborhood": [
 				{

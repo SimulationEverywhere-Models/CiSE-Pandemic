@@ -47,11 +47,12 @@ struct sirds_config {
     std::vector<double> mortality;
     std::vector<double> immunity;
     int precision;
+    int time_scaler;
 
-    sirds_config(): susceptibility({1.0}), virulence({0.0}), recovery({0.0}), mortality({0.0}), immunity({1.0}), precision(100) {}
+    sirds_config(): susceptibility({1.0}), virulence({0.0}), recovery({0.0}), mortality({0.0}), immunity({1.0}), precision(100), time_scaler(1) {}
 
-    sirds_config(std::vector<double> &s, std::vector<double> &v, std::vector<double> &r, std::vector<double> &m, std::vector<double> &i, int p):
-            susceptibility(s), virulence(v), recovery(r), mortality(m), immunity(i), precision(p) {}
+    sirds_config(std::vector<double> &s, std::vector<double> &v, std::vector<double> &r, std::vector<double> &m, std::vector<double> &i, int p, int t):
+            susceptibility(s), virulence(v), recovery(r), mortality(m), immunity(i), precision(p), time_scaler(t) {}
 };
 
 void from_json(const cadmium::json& j, sirds_config &c) {
@@ -62,6 +63,8 @@ void from_json(const cadmium::json& j, sirds_config &c) {
     j.at("immunity").get_to(c.immunity);
     uint n_decimals = (j.contains("n_decimals")) ? j["n_decimals"].get<uint>() : 2;
     c.precision = (int) pow(10, n_decimals);
+    int time_scaler = (j.contains("time_scaler"))? j["time_scaler"].get<int>() : 1;
+    c.time_scaler = (time_scaler > 0) ? time_scaler : 1;
 }
 
 template <typename T>
@@ -80,6 +83,7 @@ public:
 	std::vector<double> mortality;
 	std::vector<double> immunity;
 	int precision = 100;
+	int time_scaler = 1;
 
 	sirds_cell() : grid_cell<T, sird, mc>()  {}
 
@@ -90,8 +94,9 @@ public:
 		virulence = config.virulence;
 		recovery = config.recovery;
 		mortality = config.mortality;
+        immunity = config.immunity;
 		precision = config.precision;
-		immunity = config.immunity;
+		time_scaler = config.time_scaler;
 		auto s = state.current_state;
 	}
 
@@ -133,7 +138,7 @@ public:
 	}
 
 	// It returns the delay to communicate cell's new state.
-	T output_delay(sird const &cell_state) const override { return 1; }
+	T output_delay(sird const &cell_state) const override { return ((float)1) / time_scaler; }
 
 	[[nodiscard]] std::vector<double> new_infections(sird const &last_state) const {
         double n_effect = 0;
