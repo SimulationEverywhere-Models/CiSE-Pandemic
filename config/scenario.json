@@ -16,15 +16,35 @@
 				"recovery":       [0.08,  0.08,  0.06, 0.04],
 				"mortality":      [0,     0.001, 0.01, 0.02],
 				"immunity":       [1,     1,     1,    1   ],
-				"n_decimals": 4
+				"n_decimals": 4,
+				"mobility":{
+					"type": 0,
+					"lockdown_rates": [
+						[1, 1, 1, 1],
+						[0.5, 0.8, 0.7, 0.4]
+					],
+					"phase_durations": [10, 3],
+					"scramble": true,
+
+					"infected_effect": [1, 1, 2, 4],
+
+					"phase_thresholds": [0, 0.1],
+					"threshold_buffers": [0, 0.05]
+				}
 			},
 			"neighborhood": [
 				{
 					"type": "von_neumann",
 					"range": 1,
 					"vicinity": {
-						"connectivity": 1,
-						"mobility": [0.3, 0.7, 0.5, 0.2]
+						"connectivity": [0.3, 0.7, 0.5, 0.2]
+					}
+				},
+				{
+					"type": "relative",
+					"neighbors": [[0, 0]],
+					"vicinity": {
+						"connectivity": [1, 1, 1, 1]
 					}
 				}
 			]

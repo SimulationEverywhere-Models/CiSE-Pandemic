@@ -31,16 +31,14 @@
 #include <cadmium/json/json.hpp>
 
 struct mc {
-    double connectivity;
-    std::vector<double> mobility;
-    mc() : connectivity(0), mobility({0}) {}
-    mc(double c, std::vector<double> &m) : connectivity(c), mobility(m) {}
+    std::vector<double> connectivity;
+    mc() : connectivity({0}) {}
+    mc(std::vector<double> &c) : connectivity(c) {}
 };
 
 // Required for creating movement-connection objects from JSON file
 [[maybe_unused]] void from_json(const cadmium::json& j, mc &m) {
     j.at("connectivity").get_to(m.connectivity);
-    j.at("mobility").get_to(m.mobility);
 }
 
 #endif //CISE_PANDEMIC_VICINITY_HPP

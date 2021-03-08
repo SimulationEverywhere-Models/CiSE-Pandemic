@@ -28,6 +28,7 @@
 #ifndef CISE_PANDEMIC_STATE_HPP
 #define CISE_PANDEMIC_STATE_HPP
 
+#include <iostream>
 #include <cadmium/json/json.hpp>
 
 struct sird {
@@ -36,10 +37,11 @@ struct sird {
     std::vector<double> infected;
     std::vector<double> recovered;
     std::vector<double> deceased;
+    std::vector<double> mobility;
 
-    sird() : population({0}), susceptible({1}), infected({0}), recovered({0}), deceased({0}){}
-    sird(std::vector<int> &pop, std::vector<double> &s, std::vector<double> &i, std::vector<double> &r, std::vector<double> &d) :
-            population(pop), susceptible(s), infected(i), recovered(r), deceased(d){}
+    sird() : population({0}), susceptible({1}), infected({0}), recovered({0}), deceased({0}), mobility({1}){}
+    sird(std::vector<int> &pop, std::vector<double> &s, std::vector<double> &i, std::vector<double> &r, std::vector<double> &d, std::vector<double> &m) :
+            population(pop), susceptible(s), infected(i), recovered(r), deceased(d), mobility(m){}
 
     [[nodiscard]] int total_population() const {
         int res = 0;
@@ -100,11 +102,11 @@ struct sird {
 // Required for comparing states and detect any change
 inline bool operator != (const sird &x, const sird &y) {
     return x.population != y.population || x.susceptible != y.susceptible || x.infected != y.infected ||
-           x.recovered != y.recovered || x.deceased != y.deceased;
+           x.recovered != y.recovered || x.deceased != y.deceased || x.mobility != y.mobility;
 }
 
 // Required for printing the state of the cell
-std::ostream &operator << (std::ostream &os, const sird &x) {  // TODO
+std::ostream &operator << (std::ostream &os, const sird &x) {
     os << "<";
 
     for (int i = 0; i < x.population.size(); i++) {
@@ -122,6 +124,12 @@ std::ostream &operator << (std::ostream &os, const sird &x) {  // TODO
     j.at("infected").get_to(s.infected);
     j.at("recovered").get_to(s.recovered);
     j.at("deceased").get_to(s.deceased);
+
+    int length = s.population.size();
+    if (length != s.susceptible.size() || length != s.infected.size() || length != s.recovered.size() || length != s.deceased.size()) {
+        throw "Vector sizes of JSON do not coincide.";
+    }
+    s.mobility = std::vector<double>(length, 1);  // By default, mobility is set to 1 for all age segments.
 }
 
 #endif //CISE_PANDEMIC_STATE_HPP

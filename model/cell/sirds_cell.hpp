@@ -35,6 +35,7 @@
 
 #include "state.hpp"
 #include "vicinity.hpp"
+#include "mobility.hpp"
 
 using cadmium::json;
 using namespace cadmium::celldevs;
@@ -48,11 +49,14 @@ struct sirds_config {
     std::vector<double> immunity;
     int precision;
     int time_scaler;
+    MobilityReduction *mobility_reduction;
 
-    sirds_config(): susceptibility({1.0}), virulence({0.0}), recovery({0.0}), mortality({0.0}), immunity({1.0}), precision(100), time_scaler(1) {}
+    sirds_config(): susceptibility({1.0}), virulence({0.0}), recovery({0.0}), mortality({0.0}), immunity({1.0}), precision(100), time_scaler(1) {
+        mobility_reduction = nullptr;
+    }
 
-    sirds_config(std::vector<double> &s, std::vector<double> &v, std::vector<double> &r, std::vector<double> &m, std::vector<double> &i, int p, int t):
-            susceptibility(s), virulence(v), recovery(r), mortality(m), immunity(i), precision(p), time_scaler(t) {}
+    sirds_config(std::vector<double> &s, std::vector<double> &v, std::vector<double> &r, std::vector<double> &m, std::vector<double> &i, int p, int t, MobilityReduction *mob):
+            susceptibility(s), virulence(v), recovery(r), mortality(m), immunity(i), precision(p), time_scaler(t), mobility_reduction(mob) {}
 };
 
 void from_json(const cadmium::json& j, sirds_config &c) {
@@ -65,6 +69,34 @@ void from_json(const cadmium::json& j, sirds_config &c) {
     c.precision = (int) pow(10, n_decimals);
     int time_scaler = (j.contains("time_scaler"))? j["time_scaler"].get<int>() : 1;
     c.time_scaler = (time_scaler > 0) ? time_scaler : 1;
+
+    auto mj = (j.contains("mobility")) ? j["mobility"] : cadmium::json();
+    auto mobility_type = (mj.contains("type"))? mj["type"].get<int>() : 0;
+
+    std::vector<std::vector<double>> lockdown_rates;
+    std::vector<int> phase_durations;
+    std::vector<double> phase_thresholds, threshold_buffers;
+    bool scramble;
+    switch(mobility_type) {
+        case 1: // lockdown type: scheduled lockdown in phases
+            lockdown_rates = mj.at("lockdown_rates").get<std::vector<std::vector<double>>>();
+            phase_durations = mj.at("phase_durations").get<std::vector<int>>();
+            scramble = mj.contains("scramble") && mj["scramble"].get<bool>();
+            c.mobility_reduction = new PeriodicMobilityReduction(c.time_scaler, lockdown_rates, phase_durations, scramble);
+            break;
+        case 2: // lockdown type: continuous reaction to infected
+            lockdown_rates = std::vector<std::vector<double>>({mj.at("infected_effect").get<std::vector<double>>()});
+            c.mobility_reduction = new InfectedMobilityReduction(lockdown_rates);
+            break;
+        case 3: // lockdown type: reaction to infected in phases
+            lockdown_rates = mj.at("lockdown_rates").get<std::vector<std::vector<double>>>();
+            phase_thresholds = mj.at("phase_thresholds").get<std::vector<double>>();
+            threshold_buffers = mj.at("threshold_buffers").get<std::vector<double>>();
+            c.mobility_reduction = new InfectedPhaseMobilityReduction(lockdown_rates, phase_thresholds, threshold_buffers);
+            break;
+        default: // lockdown type: no response
+            c.mobility_reduction = nullptr;
+    }
 }
 
 template <typename T>
@@ -84,6 +116,7 @@ public:
 	std::vector<double> immunity;
 	int precision = 100;
 	int time_scaler = 1;
+	MobilityReduction* mobility_reduction = nullptr;
 
 	sirds_cell() : grid_cell<T, sird, mc>()  {}
 
@@ -97,7 +130,11 @@ public:
         immunity = config.immunity;
 		precision = config.precision;
 		time_scaler = config.time_scaler;
-		auto s = state.current_state;
+
+		mobility_reduction = config.mobility_reduction;
+        if (mobility_reduction != nullptr) {
+            state.current_state.mobility = mobility_reduction->mobility_reduction(0, cell_id, state.current_state);
+        }
 	}
 
 	[[nodiscard]] unsigned int inline n_age_segments() const {
@@ -134,6 +171,9 @@ public:
                 }
 			}
 		}
+		if (mobility_reduction != nullptr) {
+            res.mobility = mobility_reduction->mobility_reduction((double)simulation_clock, cell_id, res);
+		}
 		return res;
 	}
 
@@ -146,14 +186,14 @@ public:
             sird n_state = state.neighbors_state.at(neighbor);
             mc n_vicinity = state.neighbors_vicinity.at(neighbor);
             for (int k = 0; k < n_age_segments(); k++) {
-                n_effect += n_state.population[k] * n_state.infected[k] * n_vicinity.connectivity * n_vicinity.mobility[k] * virulence[k];
+                n_effect += n_state.population[k] * n_state.infected[k] * n_vicinity.connectivity [k] * n_state.mobility[k] * virulence[k];
             }
         }
 
         auto new_inf = std::vector<double>();
         for (int n = 0; n < n_age_segments(); n++) {
             double ratio = std::min(1.0, n_effect / last_state.population[n]);
-            new_inf.push_back(last_state.susceptible[n] * susceptibility[n] * ratio);
+            new_inf.push_back(last_state.susceptible[n] * susceptibility[n] * last_state.mobility[n] * ratio);
         }
         return new_inf;
 	}
