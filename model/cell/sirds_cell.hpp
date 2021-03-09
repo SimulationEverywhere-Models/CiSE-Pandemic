@@ -47,30 +47,60 @@ struct sirds_config {
     std::vector<double> recovery;
     std::vector<double> mortality;
     std::vector<double> immunity;
-    int precision;
-    int time_scaler;
+
+    std::vector<double> mask_adoption;
+    double sus_reduction;
+    double vir_reduction;
+
     MobilityReduction *mobility_reduction;
 
-    sirds_config(): susceptibility({1.0}), virulence({0.0}), recovery({0.0}), mortality({0.0}), immunity({1.0}), precision(100), time_scaler(1) {
+    double hospital_capacity;
+    std::vector<double> rec_reduction;
+    std::vector<double> mor_increment;
+
+    int precision;
+    int time_scaler;
+
+    sirds_config(): susceptibility({1.0}), virulence({0.0}), recovery({0.0}), mortality({0.0}),
+        immunity({1.0}), mask_adoption({0}), sus_reduction(1), vir_reduction(1), precision(100), time_scaler(1) {
         mobility_reduction = nullptr;
     }
 
-    sirds_config(std::vector<double> &s, std::vector<double> &v, std::vector<double> &r, std::vector<double> &m, std::vector<double> &i, int p, int t, MobilityReduction *mob):
-            susceptibility(s), virulence(v), recovery(r), mortality(m), immunity(i), precision(p), time_scaler(t), mobility_reduction(mob) {}
+    sirds_config(std::vector<double> &s, std::vector<double> &v, std::vector<double> &r, std::vector<double> &m,
+                 std::vector<double> &i, int p, int t, std::vector<double> &ma, double sr, double vr, MobilityReduction *mob):
+            susceptibility(s), virulence(v), recovery(r), mortality(m), immunity(i), mask_adoption(ma), sus_reduction(sr),
+            vir_reduction(vr), mobility_reduction(mob), precision(p), time_scaler(t) {}
 };
 
 void from_json(const cadmium::json& j, sirds_config &c) {
     j.at("susceptibility").get_to(c.susceptibility);
+    int length = c.susceptibility.size();
     j.at("virulence").get_to(c.virulence);
     j.at("recovery").get_to(c.recovery);
-    j.at("mortality").get_to(c.mortality);
-    j.at("immunity").get_to(c.immunity);
-    uint n_decimals = (j.contains("n_decimals")) ? j["n_decimals"].get<uint>() : 2;
-    c.precision = (int) pow(10, n_decimals);
-    int time_scaler = (j.contains("time_scaler"))? j["time_scaler"].get<int>() : 1;
-    c.time_scaler = (time_scaler > 0) ? time_scaler : 1;
+    // By default, model is a SIR model (so mortality and immunity are optional parameters)
+    c.mortality = (j.contains("mortality")) ? j["mortality"].get<std::vector<double>>() : std::vector<double>(length, 0);
+    c.immunity = (j.contains("immunity")) ? j["immunity"].get<std::vector<double>>() : std::vector<double>(length, 1);
+    assert (length == c.virulence.size() && length == c.recovery.size() && length == c.mortality.size() && length == c.immunity.size());
+    for (int i = 0; i < length; ++i) {
+        assert(c.susceptibility[i] >= 0 && c.susceptibility[i] <= 1);
+        assert(c.virulence[i] >= 0 && c.virulence[i] <= 1);
+        assert(c.recovery[i] >= 0 && c.recovery[i] <= 1);
+        assert(c.mortality[i] >= 0 && c.mortality[i] <= 1);
+        assert(c.recovery[i] + c.mortality[i] <= 1);
+        assert(c.immunity[i] >= 0 && c.immunity[i] <= 1);
+    }
 
-    auto mj = (j.contains("mobility")) ? j["mobility"] : cadmium::json();
+    c.mask_adoption = (j.contains("mask_adoption")) ? j["mask_adoption"].get<std::vector<double>>() : std::vector<double>(length, 0);
+    c.sus_reduction = (j.contains("sus_reduction")) ? j["sus_reduction"].get<double>() : 0.0;
+    c.vir_reduction = (j.contains("vir_reduction")) ? j["vir_reduction"].get<double>() : 0.0;
+    assert(length == c.mask_adoption.size());
+    for (int i = 0; i < length; ++i) {
+        assert(c.mask_adoption[i] >= 0 && c.mask_adoption[i] <= 1);
+    }
+    assert(c.sus_reduction >= 0 && c.sus_reduction <= 1);
+    assert(c.vir_reduction >= 0 && c.vir_reduction <= 1);
+
+    auto mj = (j.contains("mobility")) ? j["mobility"] : cadmium::json();  // TODO check parameters
     auto mobility_type = (mj.contains("type"))? mj["type"].get<int>() : 0;
 
     std::vector<std::vector<double>> lockdown_rates;
@@ -97,6 +127,22 @@ void from_json(const cadmium::json& j, sirds_config &c) {
         default: // lockdown type: no response
             c.mobility_reduction = nullptr;
     }
+
+    c.hospital_capacity = j.contains("hospital_capacity") ? j["hospital_capacity"].get<double>() : 1.0;
+    c.rec_reduction = j.contains("rec_reduction") ? j["rec_reduction"].get<std::vector<double>>() : std::vector<double>(length, 0);
+    c.mor_increment = j.contains("mor_increment") ? j["mor_increment"].get<std::vector<double>>() : std::vector<double>(length, 0);
+    assert(c.hospital_capacity >= 0 && c.hospital_capacity <= 1);
+    assert(length == c.rec_reduction.size() && length == c.mor_increment.size());
+    for (int i = 0; i < length; i++) {
+        assert(c.rec_reduction[i] >= 0 && c.rec_reduction[i] <= 1);
+        assert(c.mor_increment[i] >= 0 && c.mor_increment[i] <= 1);
+        assert(c.mortality[i] * (1 + c.mor_increment[i]) + c.recovery[i] * (1 - c.rec_reduction[i]) <= 1);
+    }
+
+    uint n_decimals = (j.contains("n_decimals")) ? j["n_decimals"].get<uint>() : 2;
+    c.precision = (int) pow(10, n_decimals);
+    int time_scaler = (j.contains("time_scaler"))? (int) j["time_scaler"].get<uint>() : 1;
+    c.time_scaler = (time_scaler > 0) ? time_scaler : 1;
 }
 
 template <typename T>
@@ -114,9 +160,19 @@ public:
 	std::vector<double> recovery;
 	std::vector<double> mortality;
 	std::vector<double> immunity;
+
 	int precision = 100;
 	int time_scaler = 1;
+
+	std::vector<double> mask_adoption;
+	double sus_reduction;
+	double vir_reduction;
+
 	MobilityReduction* mobility_reduction = nullptr;
+
+	double hospital_capacity;
+    std::vector<double> rec_reduction;
+    std::vector<double> mor_increment;
 
 	sirds_cell() : grid_cell<T, sird, mc>()  {}
 
@@ -128,13 +184,22 @@ public:
 		recovery = config.recovery;
 		mortality = config.mortality;
         immunity = config.immunity;
+
 		precision = config.precision;
 		time_scaler = config.time_scaler;
+
+		mask_adoption = config.mask_adoption;
+		sus_reduction = config.sus_reduction;
+		vir_reduction = config.vir_reduction;
 
 		mobility_reduction = config.mobility_reduction;
         if (mobility_reduction != nullptr) {
             state.current_state.mobility = mobility_reduction->mobility_reduction(0, cell_id, state.current_state);
         }
+
+        hospital_capacity = config.hospital_capacity;
+        rec_reduction = config.rec_reduction;
+        mor_increment = config.mor_increment;
 	}
 
 	[[nodiscard]] unsigned int inline n_age_segments() const {
@@ -181,19 +246,19 @@ public:
 	T output_delay(sird const &cell_state) const override { return ((float)1) / time_scaler; }
 
 	[[nodiscard]] std::vector<double> new_infections(sird const &last_state) const {
-        double n_effect = 0;
+        double exposure = 0;
         for (auto neighbor: neighbors) {
             sird n_state = state.neighbors_state.at(neighbor);
             mc n_vicinity = state.neighbors_vicinity.at(neighbor);
             for (int k = 0; k < n_age_segments(); k++) {
-                n_effect += n_state.population[k] * n_state.infected[k] * n_vicinity.connectivity [k] * n_state.mobility[k] * virulence[k];
+                exposure += n_state.population[k] * n_state.infected[k] * n_vicinity.connectivity [k] * n_state.mobility[k] * get_virulence(k);
             }
         }
 
         auto new_inf = std::vector<double>();
         for (int n = 0; n < n_age_segments(); n++) {
-            double ratio = std::min(1.0, n_effect / last_state.population[n]);
-            new_inf.push_back(last_state.susceptible[n] * susceptibility[n] * last_state.mobility[n] * ratio);
+            double ratio = std::min(1.0, exposure / last_state.population[n]);
+            new_inf.push_back(last_state.susceptible[n] * get_susceptibility(n) * last_state.mobility[n] * ratio);
         }
         return new_inf;
 	}
@@ -201,7 +266,7 @@ public:
 	[[nodiscard]] std::vector<double> new_recoveries(sird const &last_state) const {
 		auto new_r = std::vector<double>();
 		for (int i = 0; i < n_age_segments(); i++) {
-			new_r.push_back(last_state.infected[i] * recovery[i]);
+			new_r.push_back(last_state.infected[i] * get_recovery(last_state.infected_ratio(), i));
 		}
 		return new_r;
 	}
@@ -209,7 +274,7 @@ public:
 	[[nodiscard]] std::vector<double> new_deaths(sird const &last_state) const {
 		auto new_d = std::vector<double>();
 		for (int i = 0; i < n_age_segments(); i++) {
-			new_d.push_back(last_state.infected[i] * mortality[i]);
+			new_d.push_back(last_state.infected[i] * get_mortality(last_state.infected_ratio(), i));
 		}
 		return new_d;
 	}
@@ -217,9 +282,37 @@ public:
     [[nodiscard]] std::vector<double> new_susceptible(sird const &last_state) const {
         auto new_s = std::vector<double>();
         for (int i = 0; i < n_age_segments(); i++) {
-            new_s.push_back(last_state.recovered[i] * (1 - immunity[i]));
+            new_s.push_back(last_state.recovered[i] * (1 - get_immunity(i)));
         }
         return new_s;
+    }
+
+    [[nodiscard]] double get_susceptibility(int n) const {
+        return susceptibility[n] * (1 - mask_adoption[n] + mask_adoption[n] * (1 - sus_reduction));
+    }
+
+    [[nodiscard]] double get_virulence(int n) const {
+	    return virulence[n] * (1 - mask_adoption[n] + mask_adoption[n] * (1 - vir_reduction));
+	}
+
+    [[nodiscard]] double get_recovery(double infected_ratio, int n) const {
+	    auto res = recovery[n];
+	    if (infected_ratio > hospital_capacity) {
+	        res *= 1 - rec_reduction[n];
+	    }
+        return res;
+    }
+
+    [[nodiscard]] double get_mortality(double infected_ratio, int n) const {
+        auto res = mortality[n];
+        if (infected_ratio > hospital_capacity) {
+            res *= 1 + mor_increment[n];
+        }
+        return res;
+    }
+
+    [[nodiscard]] double get_immunity(int n) const {
+	    return immunity[n];
     }
 };
 
