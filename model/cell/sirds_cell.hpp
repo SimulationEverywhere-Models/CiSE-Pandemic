@@ -53,6 +53,7 @@ struct sirds_config {
     double vir_reduction;
 
     MobilityReduction *mobility_reduction;
+    std::vector<double> disobedience;
 
     double hospital_capacity;
     std::vector<double> rec_reduction;
@@ -61,15 +62,18 @@ struct sirds_config {
     int precision;
     int time_scaler;
 
-    sirds_config(): susceptibility({1.0}), virulence({0.0}), recovery({0.0}), mortality({0.0}),
-        immunity({1.0}), mask_adoption({0}), sus_reduction(1), vir_reduction(1), precision(100), time_scaler(1) {
+    sirds_config(): susceptibility({1}), virulence({0}), recovery({0}), mortality({0}),
+    immunity({1}), mask_adoption({0}), sus_reduction(0), vir_reduction(0), disobedience({0}),
+    hospital_capacity(1), rec_reduction({0}), mor_increment({0}), precision(100), time_scaler(1) {
         mobility_reduction = nullptr;
     }
 
     sirds_config(std::vector<double> &s, std::vector<double> &v, std::vector<double> &r, std::vector<double> &m,
-                 std::vector<double> &i, int p, int t, std::vector<double> &ma, double sr, double vr, MobilityReduction *mob):
-            susceptibility(s), virulence(v), recovery(r), mortality(m), immunity(i), mask_adoption(ma), sus_reduction(sr),
-            vir_reduction(vr), mobility_reduction(mob), precision(p), time_scaler(t) {}
+                 std::vector<double> &i, std::vector<double> &ma, double sr, double vr, MobilityReduction *mob,
+                 std::vector<double> &dis, double hc, std::vector<double> &rr, std::vector<double> &mi, int p, int t):
+            susceptibility(s), virulence(v), recovery(r), mortality(m), immunity(i), mask_adoption(ma),
+            sus_reduction(sr), vir_reduction(vr), mobility_reduction(mob), disobedience(dis),
+            hospital_capacity(hc), rec_reduction(rr), mor_increment(mi), precision(p), time_scaler(t) {}
 };
 
 void from_json(const cadmium::json& j, sirds_config &c) {
@@ -100,6 +104,11 @@ void from_json(const cadmium::json& j, sirds_config &c) {
     assert(c.sus_reduction >= 0 && c.sus_reduction <= 1);
     assert(c.vir_reduction >= 0 && c.vir_reduction <= 1);
 
+    uint n_decimals = (j.contains("n_decimals")) ? j["n_decimals"].get<uint>() : 2;
+    c.precision = (int) pow(10, n_decimals);
+    int time_scaler = (j.contains("time_scaler"))? (int) j["time_scaler"].get<uint>() : 1;
+    c.time_scaler = (time_scaler > 0) ? time_scaler : 1;
+
     auto mj = (j.contains("mobility")) ? j["mobility"] : cadmium::json();  // TODO check parameters
     auto mobility_type = (mj.contains("type"))? mj["type"].get<int>() : 0;
 
@@ -127,6 +136,11 @@ void from_json(const cadmium::json& j, sirds_config &c) {
         default: // lockdown type: no response
             c.mobility_reduction = nullptr;
     }
+    c.disobedience = j.contains("disobedience") ? j["disobedience"].get<std::vector<double>>() : std::vector<double>(length, 0);
+    assert(length == c.disobedience.size());
+    for (int i = 0; i < length; ++i) {
+        assert(c.disobedience[i] >= 0 && c.disobedience[i] <= 1);
+    }
 
     c.hospital_capacity = j.contains("hospital_capacity") ? j["hospital_capacity"].get<double>() : 1.0;
     c.rec_reduction = j.contains("rec_reduction") ? j["rec_reduction"].get<std::vector<double>>() : std::vector<double>(length, 0);
@@ -138,11 +152,6 @@ void from_json(const cadmium::json& j, sirds_config &c) {
         assert(c.mor_increment[i] >= 0 && c.mor_increment[i] <= 1);
         assert(c.mortality[i] * (1 + c.mor_increment[i]) + c.recovery[i] * (1 - c.rec_reduction[i]) <= 1);
     }
-
-    uint n_decimals = (j.contains("n_decimals")) ? j["n_decimals"].get<uint>() : 2;
-    c.precision = (int) pow(10, n_decimals);
-    int time_scaler = (j.contains("time_scaler"))? (int) j["time_scaler"].get<uint>() : 1;
-    c.time_scaler = (time_scaler > 0) ? time_scaler : 1;
 }
 
 template <typename T>
@@ -169,6 +178,7 @@ public:
 	double vir_reduction;
 
 	MobilityReduction* mobility_reduction = nullptr;
+	std::vector<double> disobedience;
 
 	double hospital_capacity;
     std::vector<double> rec_reduction;
@@ -193,8 +203,9 @@ public:
 		vir_reduction = config.vir_reduction;
 
 		mobility_reduction = config.mobility_reduction;
+        disobedience = config.disobedience;
         if (mobility_reduction != nullptr) {
-            state.current_state.mobility = mobility_reduction->mobility_reduction(0, cell_id, state.current_state);
+            state.current_state.mobility = new_mobility(0);
         }
 
         hospital_capacity = config.hospital_capacity;
@@ -237,7 +248,7 @@ public:
 			}
 		}
 		if (mobility_reduction != nullptr) {
-            res.mobility = mobility_reduction->mobility_reduction((double)simulation_clock, cell_id, res);
+            res.mobility = new_mobility((double) simulation_clock);
 		}
 		return res;
 	}
@@ -314,6 +325,14 @@ public:
     [[nodiscard]] double get_immunity(int n) const {
 	    return immunity[n];
     }
+
+    [[nodiscard]] std::vector<double> new_mobility(float time) const {
+	    auto res = mobility_reduction->mobility_reduction(time, cell_id, state.current_state);
+        for (int i = 0; i < n_age_segments(); ++i) {
+            res[i] = disobedience[i] + (1 - disobedience[i]) * res[i];
+        }
+	    return res;
+	}
 };
 
 #endif //CISE_PANDEMIC_SIRDS_CELL_HPP
