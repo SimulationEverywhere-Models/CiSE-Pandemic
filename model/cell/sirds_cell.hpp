@@ -329,7 +329,7 @@ public:
     [[nodiscard]] std::vector<double> new_mobility(float time) const {
 	    auto res = mobility_reduction->mobility_reduction(time, cell_id, state.current_state);
         for (int i = 0; i < n_age_segments(); ++i) {
-            res[i] = disobedience[i] + (1 - disobedience[i]) * res[i];
+            res[i] = std::round((disobedience[i] + (1 - disobedience[i]) * res[i]) * precision) / precision;
         }
 	    return res;
 	}

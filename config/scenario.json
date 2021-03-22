@@ -11,26 +11,35 @@
 				"deceased":       [ 0,    0,     0,    0   ]
 			},
 			"config": {
-				"susceptibility": [1,     1,     1,    1   ],
-				"virulence":      [0.02,  0.02,  0.02, 0.02],
-				"recovery":       [0.08,  0.08,  0.06, 0.04],
-				"mortality":      [0,     0.001, 0.01, 0.02],
-				"immunity":       [1,     1,     1,    1   ],
-				"n_decimals": 4,
+				"susceptibility": [1,     1,     1,     1    ],
+				"virulence":      [0.08,  0.08,  0.09,  0.09 ],
+				"recovery":       [0.1,   0.1,   0.08,  0.06 ],
+				"mortality":      [0,     0.001, 0.015, 0.035],
+				"immunity":       [1,     1,     1,     1    ],
+				"mask_adoption": [0, 0, 0, 0],
+				"sus_reduction": 0.25,
+				"vir_reduction": 0.5,
+
+				"hospital_capacity": 0.2,
+				"rec_reduction": [0, 0, 0.005, 0.005],
+				"mor_increment": [0, 0, 0.005, 0.005],
+				"n_decimals": 6,
 				"mobility":{
-					"type": 0,
+					"type": 3,
 					"lockdown_rates": [
-						[1, 1, 1, 1],
-						[0.5, 0.8, 0.7, 0.4]
+						[1,   1,   1,   1],
+						[0.5, 0.5, 0.5, 0.5],
+						[0.2, 0.2, 0.2, 0.2]
 					],
-					"phase_durations": [10, 3],
-					"scramble": true,
+					"phase_durations": [4, 3],
+					"scramble": false,
 
-					"infected_effect": [1, 1, 2, 4],
+					"infected_effect": [1, 2, 4, 8],
 
-					"phase_thresholds": [0, 0.1],
-					"threshold_buffers": [0, 0.05]
-				}
+					"phase_thresholds": [0, 0.05, 0.1],
+					"threshold_buffers": [0, 0.05, 0.05]
+				},
+				"disobedience": [1, 1, 1, 1]
 			},
 			"neighborhood": [
 				{
